@@ -76,6 +76,10 @@ button.ik{background:#fff;color:var(--ac);border:1px solid var(--ac)}
     <textarea id="acik" placeholder="Ne oldu? Kimler vardı? Ne zaman ve nerede? Öğrenci ne söyledi / yaptı?"></textarea>
     <p class="not"><span id="say">0</span> karakter · en az 10</p>
 
+    <label>Yanınızdaki nöbetçi öğretmen <small style="font-weight:400;color:var(--mt)">(tutanakta imza yeri açılır)</small></label>
+    <div id="imzacilar"></div>
+    <button type="button" class="ik" id="imzaEkle" style="margin-top:2px;padding:8px 12px">+ Bir öğretmen daha</button>
+
     <label>Fotoğraf <small style="font-weight:400;color:var(--mt)">(isteğe bağlı, en çok 3)</small></label>
     <input id="foto" type="file" accept="image/*" multiple>
     <div id="fotolar" class="fotolar"></div>
@@ -102,6 +106,7 @@ button.ik{background:#fff;color:var(--ac);border:1px solid var(--ac)}
   var ILK_KOD = (new URLSearchParams(location.search).get("k") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
   var YERLER = ['Sınıf','Koridor','Okul bahçesi','Kantin','Tuvalet','Spor salonu','Merdiven','Tören alanı','Servis aracı','Okul çevresi','Sosyal medya / çevrim içi','Diğer'];
   var $ = function (id) { return document.getElementById(id); };
+  var ogretmenler = [], benim = '';
   var kod = '', secilenOgrenci = null, fotolar = [], gonderimNo = '', zamanlayici = null, aramaSayac = 0, gonderiliyor = false;
 
   var API = 'https://script.google.com/macros/s/AKfycbzyYeUccJy5WCZSsLaun_U0Xw3lLOpgJx3hl6dbdTGkZtXnAsfvoVbnyIGIv32WvRquXw/exec';
@@ -120,7 +125,7 @@ button.ik{background:#fff;color:var(--ac);border:1px solid var(--ac)}
   function giris(k, sessiz) {
     $('btnGiris').disabled = true; hataYaz('girisHata', '');
     return gs('giris', k).then(function (d) {
-      kod = k; saklaKod(k);
+      kod = k; saklaKod(k); ogretmenler = d.ogretmenler || []; benim = d.ad;
       $('altBaslik').textContent = d.ad + (d.okul ? ' · ' + d.okul : '');
       YERLER.forEach(function (y) { var o = document.createElement('option'); o.value = y; o.textContent = y; $('yer').appendChild(o); });
       var grup = {}, etk = { a: 'Uyarma gerektirenler', b: 'Kınama gerektirenler', c: 'Okul değiştirme gerektirenler' };
@@ -139,6 +144,27 @@ button.ik{background:#fff;color:var(--ac);border:1px solid var(--ac)}
     $('secili').classList.add('gizli'); $('araKutu').classList.remove('gizli'); $('ara').value = ''; $('sonuc').classList.add('gizli');
     $('acik').value = ''; $('say').textContent = '0'; $('yer').value = ''; $('madde').value = ''; $('foto').value = ''; $('fotolar').innerHTML = '';
     hataYaz('formHata', '');
+    $('imzacilar').innerHTML = ''; imzaSatiri();
+  }
+
+  function imzaSatiri() {
+    var d = document.createElement('div'); d.className = 'isr'; d.style.marginBottom = '8px';
+    var s = document.createElement('select'); s.className = 'isSec';
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Öğretmen seçin…'; s.appendChild(o0);
+    ogretmenler.forEach(function (o) { if (o.ad === benim) return; var x = document.createElement('option'); x.value = o.ad; x.textContent = o.ad + (o.brans ? ' (' + o.brans + ')' : ''); s.appendChild(x); });
+    var oe = document.createElement('option'); oe.value = '__elle'; oe.textContent = '✎ Listede yok, adını yazacağım'; s.appendChild(oe);
+    var t = document.createElement('input'); t.type = 'text'; t.className = 'isElle gizli'; t.placeholder = 'Adı soyadı'; t.style.marginTop = '6px';
+    s.addEventListener('change', function () { t.classList.toggle('gizli', s.value !== '__elle'); if (s.value === '__elle') t.focus(); });
+    d.appendChild(s); d.appendChild(t); $('imzacilar').appendChild(d);
+  }
+  function imzalariTopla() {
+    var out = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.isr'), function (r) {
+      var sv = r.querySelector('.isSec').value;
+      var ad = sv === '__elle' ? r.querySelector('.isElle').value.trim() : sv;
+      if (ad) out.push({ ad: ad, unvan: 'Nöbetçi Öğretmen' });
+    });
+    return out;
   }
 
   function aramaYap() {
@@ -219,6 +245,7 @@ button.ik{background:#fff;color:var(--ac);border:1px solid var(--ac)}
     liste.slice(0, Math.max(kalan, 0)).reduce(function (p, f) { return p.then(function () { return kucult(f).then(function (d) { if (d) fotolar.push(d); else hataYaz('formHata', 'Bir fotoğraf okunamadı.'); }); }); }, Promise.resolve())
       .then(function () { fotoCiz(); $('foto').value = ''; });
   });
+  $('imzaEkle').addEventListener('click', function () { if (document.querySelectorAll('.isr').length < 3) imzaSatiri(); });
   $('btnYeni').addEventListener('click', function () { yeniForm(); goster('ekForm'); gecmisYukle(); });
   $('btnGonder').addEventListener('click', function () {
     if (gonderiliyor) return;
@@ -229,7 +256,7 @@ button.ik{background:#fff;color:var(--ac);border:1px solid var(--ac)}
     gonderiliyor = true; $('btnGonder').disabled = true; $('btnGonder').textContent = 'Gönderiliyor…';
     gs('gonder', kod, {
       no: gonderimNo, ogrenciId: secilenOgrenci.id, tarih: $('tarih').value, yer: $('yer').value, maddeId: $('madde').value || null,
-      aciklama: $('acik').value, fotograflar: fotolar.map(function (f) { return { base64: f.split(',')[1], mime: 'image/jpeg' }; })
+      aciklama: $('acik').value, ekImzalar: imzalariTopla(), fotograflar: fotolar.map(function (f) { return { base64: f.split(',')[1], mime: 'image/jpeg' }; })
     }).then(function () { goster('ekTamam'); })
       .catch(function (e) { hataYaz('formHata', e.message); window.scrollTo(0, document.body.scrollHeight); })
       .then(function () { gonderiliyor = false; $('btnGonder').disabled = false; $('btnGonder').textContent = 'Gönder'; });
