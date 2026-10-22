@@ -1,5 +1,5 @@
 // Uygulama kabuğu: sayfa çevrimdışıyken de açılır; veri istekleri her zaman ağa gider
-var AD = 'tutanak-v2';
+var AD = 'tutanak-v3';
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(AD).then(function (c) { return c.addAll(['./', 'index.html', 'icon-192.png']); }).catch(function () {})); self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(caches.keys().then(function (k) { return Promise.all(k.filter(function (x) { return x !== AD; }).map(function (x) { return caches.delete(x); })); })); self.clients.claim(); });
 self.addEventListener('fetch', function (e) {
